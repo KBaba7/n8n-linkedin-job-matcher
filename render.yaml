@@ -9,6 +9,7 @@ services:
     plan: free
     region: oregon
     healthCheckPath: /healthz
+    startCommand: n8n start
     envVars:
       - key: N8N_BASIC_AUTH_ACTIVE
         value: true
