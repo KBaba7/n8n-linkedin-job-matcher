@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "apify": {
+      "command": "npx",
+      "args": ["-y", "@apify/mcp-server"],
+      "env": {
+        "APIFY_API_TOKEN": "YOUR_APIFY_TOKEN_HERE"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "apify_run_actor",
+        "apify_get_dataset_items"
+      ]
+    }
+  }
+}

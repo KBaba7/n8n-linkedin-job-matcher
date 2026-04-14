@@ -1,0 +1,559 @@
+{
+  "name": "LinkedIn Job Matcher via Telegram",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message"]
+      },
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "telegram-job-matcher",
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json[\"message\"][\"text\"]}}",
+              "operation": "startsWith",
+              "value2": "/start"
+            }
+          ]
+        }
+      },
+      "name": "Is Start Command",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$json[\"message\"][\"chat\"][\"id\"]}}",
+        "text": "👋 Welcome to LinkedIn Job Matcher!\n\n📄 Please upload your resume (PDF or TXT)\n\nThen provide:\n• Job titles you're interested in\n• Preferred locations\n• Experience level\n\nI'll find matching LinkedIn jobs for you!"
+      },
+      "name": "Send Welcome",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [650, 200],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json[\"message\"][\"document\"]}}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "name": "Is Resume Upload",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "fileId": "={{$json[\"message\"][\"document\"][\"file_id\"]}}",
+        "download": true
+      },
+      "name": "Download Resume",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [850, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json[\"mimeType\"]}}",
+              "operation": "contains",
+              "value2": "pdf"
+            }
+          ]
+        }
+      },
+      "name": "Is PDF File",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "operation": "toText",
+        "options": {}
+      },
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// For text files, convert buffer to string\nconst data = $input.first().json.data;\nlet text = '';\n\nif (Buffer.isBuffer(data)) {\n  text = data.toString('utf-8');\n} else if (typeof data === 'string') {\n  text = data;\n} else {\n  text = JSON.stringify(data);\n}\n\nreturn {\n  json: {\n    text: text,\n    mimeType: $input.first().json.mimeType\n  }\n};"
+      },
+      "name": "Convert Text File",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$credentials.groqApi.apiKey}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a resume parser. Extract information and return only valid JSON.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Extract key information from this resume:\\n\\n{{$json[\\\"text\\\"] || $json[\\\"data\\\"].toString()}}\\n\\nProvide JSON:\\n{\\n  \\\"skills\\\": [],\\n  \\\"experience_years\\\": 0,\\n  \\\"current_role\\\": \\\"\\\",\\n  \\\"education\\\": [],\\n  \\\"key_achievements\\\": []\\n}\"\n    }\n  ],\n  \"temperature\": 0.1,\n  \"max_tokens\": 2000\n}",
+        "options": {}
+      },
+      "name": "Parse Resume with AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1450, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Groq API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resumeData = JSON.parse($input.first().json.choices[0].message.content);\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\n\nreturn {\n  json: {\n    chatId,\n    resumeData,\n    userId: chatId\n  }\n};"
+      },
+      "name": "Store Resume Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1650, 400]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$json[\"chatId\"]}}",
+        "text": "✅ Resume processed!\n\n📋 Found:\n• {{$json[\"resumeData\"][\"skills\"].length}} skills\n• {{$json[\"resumeData\"][\"experience_years\"]}} years experience\n• Current role: {{$json[\"resumeData\"][\"current_role\"]}}\n\nNow tell me:\n1️⃣ Job titles (e.g., \"Software Engineer, Data Scientist\")\n2️⃣ Locations (e.g., \"San Francisco, Remote\")\n3️⃣ Level (e.g., \"Mid-Level, Senior\")"
+      },
+      "name": "Confirm Resume",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1850, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json[\"message\"][\"text\"]}}",
+              "operation": "contains",
+              "value2": "Job Title:"
+            }
+          ]
+        }
+      },
+      "name": "Is Job Criteria",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 600]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$credentials.groqApi.apiKey}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a job criteria parser. Extract information and return only valid JSON.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Extract job search criteria:\\n\\n{{$json[\\\"message\\\"][\\\"text\\\"]}}\\n\\nProvide JSON:\\n{\\n  \\\"job_titles\\\": [],\\n  \\\"locations\\\": [],\\n  \\\"levels\\\": []\\n}\"\n    }\n  ],\n  \"temperature\": 0.1,\n  \"max_tokens\": 500\n}",
+        "options": {}
+      },
+      "name": "Parse Job Criteria",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [850, 600],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Groq API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/apify~linkedin-jobs-scraper/runs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$credentials.apifyApi.apiKey}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "keywords",
+              "value": "={{JSON.parse($json[\"choices\"][0][\"message\"][\"content\"]).job_titles.join(' OR ')}}"
+            },
+            {
+              "name": "location",
+              "value": "={{JSON.parse($json[\"choices\"][0][\"message\"][\"content\"]).locations[0]}}"
+            },
+            {
+              "name": "maxResults",
+              "value": "20"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Scrape LinkedIn via Apify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1050, 600],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3",
+          "name": "Apify API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.apify.com/v2/acts/{{$json[\"data\"][\"actId\"]}}/runs/{{$json[\"data\"][\"id\"]}}/dataset/items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$credentials.apifyApi.apiKey}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "name": "Get Scraped Jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1250, 600],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3",
+          "name": "Apify API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$credentials.groqApi.apiKey}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a job matching expert. Analyze jobs against resume and return only valid JSON array.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Match these jobs with the resume:\\n\\nResume Skills: {{$node[\\\"Store Resume Data\\\"].json[\\\"resumeData\\\"][\\\"skills\\\"].join(', ')}}\\nExperience: {{$node[\\\"Store Resume Data\\\"].json[\\\"resumeData\\\"][\\\"experience_years\\\"]}} years\\n\\nJobs:\\n{{JSON.stringify($json, null, 2)}}\\n\\nFor each job, provide:\\n{\\n  \\\"job_title\\\": \\\"\\\",\\n  \\\"company\\\": \\\"\\\",\\n  \\\"location\\\": \\\"\\\",\\n  \\\"match_score\\\": 0-100,\\n  \\\"match_reasons\\\": [],\\n  \\\"missing_skills\\\": [],\\n  \\\"url\\\": \\\"\\\"\\n}\\n\\nReturn top 5 matches as JSON array.\"\n    }\n  ],\n  \"temperature\": 0.2,\n  \"max_tokens\": 4000\n}",
+        "options": {}
+      },
+      "name": "Match Jobs with AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1450, 600],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Groq API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const matches = JSON.parse($input.first().json.choices[0].message.content);\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\n\nlet message = '🎯 Found ' + matches.length + ' matching jobs:\\n\\n';\n\nmatches.forEach((job, index) => {\n  message += `${index + 1}. ${job.job_title} at ${job.company}\\n`;\n  message += `📍 ${job.location}\\n`;\n  message += `✨ Match: ${job.match_score}%\\n`;\n  message += `✅ Reasons: ${job.match_reasons.join(', ')}\\n`;\n  if (job.missing_skills.length > 0) {\n    message += `⚠️ Missing: ${job.missing_skills.join(', ')}\\n`;\n  }\n  message += `🔗 ${job.url}\\n\\n`;\n});\n\nreturn {\n  json: {\n    chatId,\n    message\n  }\n};"
+      },
+      "name": "Format Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1650, 600]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$json[\"chatId\"]}}",
+        "text": "={{$json[\"message\"]}}",
+        "additionalFields": {
+          "disable_web_page_preview": true
+        }
+      },
+      "name": "Send Job Matches",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1850, 600],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Is Start Command",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is Resume Upload",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is Job Criteria",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Start Command": {
+      "main": [
+        [
+          {
+            "node": "Send Welcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Resume Upload": {
+      "main": [
+        [
+          {
+            "node": "Download Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Resume": {
+      "main": [
+        [
+          {
+            "node": "Is PDF File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is PDF File": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Convert Text File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Parse Resume with AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert Text File": {
+      "main": [
+        [
+          {
+            "node": "Parse Resume with AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Resume with AI": {
+      "main": [
+        [
+          {
+            "node": "Store Resume Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Resume Data": {
+      "main": [
+        [
+          {
+            "node": "Confirm Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Job Criteria": {
+      "main": [
+        [
+          {
+            "node": "Parse Job Criteria",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Job Criteria": {
+      "main": [
+        [
+          {
+            "node": "Scrape LinkedIn via Apify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape LinkedIn via Apify": {
+      "main": [
+        [
+          {
+            "node": "Get Scraped Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Scraped Jobs": {
+      "main": [
+        [
+          {
+            "node": "Match Jobs with AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Jobs with AI": {
+      "main": [
+        [
+          {
+            "node": "Format Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Results": {
+      "main": [
+        [
+          {
+            "node": "Send Job Matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

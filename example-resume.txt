@@ -1,0 +1,53 @@
+JOHN DOE
+Senior Software Engineer
+john.doe@email.com | +1-555-0123 | San Francisco, CA
+LinkedIn: linkedin.com/in/johndoe | GitHub: github.com/johndoe
+
+SUMMARY
+Senior Software Engineer with 6+ years of experience building scalable backend systems and microservices. Expert in Python, Go, and cloud infrastructure. Passionate about distributed systems and developer tooling.
+
+SKILLS
+Languages: Python, Go, JavaScript, TypeScript, SQL
+Frameworks: FastAPI, Django, Flask, React, Node.js
+Cloud: AWS (EC2, Lambda, S3, RDS), GCP, Docker, Kubernetes
+Databases: PostgreSQL, MongoDB, Redis, Elasticsearch
+Tools: Git, CI/CD, Terraform, Prometheus, Grafana
+
+EXPERIENCE
+
+Senior Software Engineer | Tech Corp | 2021 - Present
+• Designed and implemented microservices architecture serving 10M+ requests/day
+• Led migration from monolith to microservices, reducing deployment time by 70%
+• Built real-time data pipeline processing 500GB daily using Kafka and Spark
+• Mentored 5 junior engineers and conducted code reviews
+
+Software Engineer | StartupXYZ | 2019 - 2021
+• Developed RESTful APIs using Python FastAPI and PostgreSQL
+• Implemented authentication system supporting OAuth2 and JWT
+• Optimized database queries reducing response time by 60%
+• Built CI/CD pipeline using GitHub Actions and Docker
+
+Junior Developer | WebDev Inc | 2018 - 2019
+• Created responsive web applications using React and Node.js
+• Collaborated with design team to implement UI/UX improvements
+• Fixed bugs and added features to existing codebase
+
+EDUCATION
+
+Bachelor of Science in Computer Science
+University of California, Berkeley | 2014 - 2018
+GPA: 3.7/4.0
+
+CERTIFICATIONS
+• AWS Certified Solutions Architect - Associate
+• Kubernetes Administrator (CKA)
+
+PROJECTS
+
+Open Source Contributions
+• Contributor to FastAPI (Python web framework)
+• Maintained popular CLI tool with 2k+ GitHub stars
+
+Personal Projects
+• Built job search aggregator using web scraping and NLP
+• Created developer productivity tool used by 500+ users
