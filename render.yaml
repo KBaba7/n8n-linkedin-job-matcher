@@ -25,7 +25,11 @@ services:
       - key: N8N_PROTOCOL
         value: https
       - key: WEBHOOK_URL
-        value: https://n8n-job-matcher.onrender.com
+        value: https://n8n-linkedin-job-matcher.onrender.com
+      - key: N8N_HOST
+        value: n8n-linkedin-job-matcher.onrender.com
+      - key: N8N_EDITOR_BASE_URL
+        value: https://n8n-linkedin-job-matcher.onrender.com
       - key: GENERIC_TIMEZONE
         value: America/Los_Angeles
       - key: TELEGRAM_BOT_TOKEN
